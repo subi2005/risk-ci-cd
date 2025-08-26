@@ -1,0 +1,58 @@
+version: 0.2
+
+env:
+  variables:
+    ARTIFACT_NAME: "risk-backend-artifact"
+  parameter-store:
+    # optional: put your DB URL or other secrets in SSM and map here if you want to run tests that need them
+    # DATABASE_URL: "/risk-app/DATABASE_URL"
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.11
+    commands:
+      - echo "Installing build tooling..."
+      - pip install --upgrade pip
+      - pip install wheel
+  pre_build:
+    commands:
+      - echo "Verifying repository layout..."
+      - test -f requirements.txt || (echo "requirements.txt missing at repo root" && exit 1)
+      - test -d backend || (echo "backend/ folder missing" && exit 1)
+      - test -d ml_model || (echo "ml_model/ folder missing" && exit 1)
+      - python -V
+      - pip -V
+  build:
+    commands:
+      - echo "Optional: run unit tests if you have them"
+      - |
+        if [ -f "pytest.ini" ] || [ -d "tests" ]; then
+          pip install -r requirements.txt
+          pip install pytest
+          pytest -q || { echo "Tests failed"; exit 1; }
+        else
+          echo "No tests directory found. Skipping tests."
+        fi
+      - echo "Staging deployment files..."
+      - mkdir -p deploy_bundle
+      # include only what the server needs at runtime
+      - cp -R backend deploy_bundle/backend
+      - cp -R ml_model deploy_bundle/ml_model
+      - cp requirements.txt deploy_bundle/requirements.txt
+      # include CI/CD runtime files
+      - mkdir -p deploy_bundle/ci_cd/scripts
+      - mkdir -p deploy_bundle/ci_cd/systemd
+      - cp ci_cd/appspec.yml deploy_bundle/appspec.yml
+      - cp ci_cd/scripts/*.sh deploy_bundle/ci_cd/scripts/
+      - cp ci_cd/systemd/risk-backend.service deploy_bundle/ci_cd/systemd/
+      # (optional) include README or docs for the server
+      - if [ -f README.md ]; then cp README.md deploy_bundle/README.md; fi
+  post_build:
+    commands:
+      - echo "Zipping bundle..."
+      - cd deploy_bundle && zip -r ../${ARTIFACT_NAME}.zip . && cd ..
+artifacts:
+  files:
+    - ${ARTIFACT_NAME}.zip
+  name: ${ARTIFACT_NAME}
