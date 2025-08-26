@@ -1,0 +1,17 @@
+[Unit]
+Description=Risk Stratification FastAPI Service
+After=network.target
+
+[Service]
+User=ec2-user
+Group=ec2-user
+WorkingDirectory=/srv/risk-backend
+Environment="PATH=/srv/risk-backend/.venv/bin"
+# If you create a .env in install step, uncomment:
+# EnvironmentFile=/srv/risk-backend/.env
+ExecStart=/srv/risk-backend/.venv/bin/uvicorn backend.main:app --host 0.0.0.0 --port 8000 --workers 2
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
